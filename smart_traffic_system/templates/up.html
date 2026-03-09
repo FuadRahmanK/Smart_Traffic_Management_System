@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upload Lane Videos</title>
+<link rel="stylesheet" href="/static/theme.css">
+
+<style>html,
+body{
+height:100%;
+overflow:hidden;
+}
+body{
+min-height:100vh;
+display:grid;
+place-items:center;
+padding:20px 14px;
+}
+
+.container{
+--card-border:rgba(255,255,255,0.7);
+--card-radius:16px;
+width:min(720px,100%);
+overflow:hidden;
+animation:cardIn 400ms ease-out;
+}
+
+.hero{
+background:linear-gradient(120deg, #1a3556 0%, #1d3a5f 100%);
+color:#f0f7ff;
+padding:20px 24px 18px;
+border-bottom:1px solid rgba(255,255,255,0.1);
+}
+
+.hero h1{
+margin:0 0 6px;
+font-size:1.35rem;
+letter-spacing:0.3px;
+font-weight:600;
+}
+
+.hero p{
+margin:0;
+color:#c8d9f0;
+font-size:0.92rem;
+font-weight:400;
+}
+
+form{
+padding:20px 24px 24px;
+display:grid;
+gap:12px;
+}
+
+.lane-row{
+display:grid;
+grid-template-columns:120px 1fr;
+align-items:center;
+gap:12px;
+padding:12px;
+border:1px solid var(--surface-line);
+border-radius:10px;
+background:#fff;
+transition:all 180ms ease;
+}
+
+.lane-row:hover,
+.lane-row:focus-within{
+border-color:#8fa8c4;
+box-shadow:0 6px 14px rgba(17,50,78,0.12);
+transform:translateY(-1px);
+}
+
+.lane-label{
+color:var(--text-main);
+font-weight:600;
+font-size:0.92rem;
+}
+
+.input-wrap{
+	display:flex;
+	flex-direction:column;
+	gap:6px;
+}
+
+input[type="file"]{
+	width:100%;
+	font-family:inherit;
+	color:var(--text-main);
+}
+
+input[type="file"]::file-selector-button{
+	border:none;
+	border-radius:9px;
+	padding:8px 13px;
+	margin-right:10px;
+	background:#e6eef8;
+	color:#1a3554;
+	font-family:inherit;
+	font-weight:600;
+	cursor:pointer;
+	transition:background 160ms ease;
+}
+
+input[type="file"]::file-selector-button:hover{
+	background:#d4e2f2;
+}
+
+.file-name{
+color:var(--text-sub);
+font-size:0.82rem;
+line-height:1.3;
+}
+
+.file-name.selected{
+	color:var(--ok);
+	font-weight:500;
+}
+
+button{
+margin-top:6px;
+border:none;
+width:100%;
+border-radius:10px;
+padding:13px 16px;
+background:var(--accent);
+color:#fff;
+font-family:inherit;
+font-size:0.95rem;
+font-weight:700;
+letter-spacing:0.3px;
+cursor:pointer;
+transition:all 170ms ease;
+}
+
+button:hover{
+background:var(--accent-hover);
+transform:translateY(-2px);
+box-shadow:0 8px 16px rgba(236,106,59,0.3);
+}
+
+button:active{
+	transform:translateY(0);
+}
+
+button:focus-visible,
+input[type="file"]:focus-visible{
+	outline:3px solid rgba(70,130,180,0.35);
+	outline-offset:2px;
+}
+
+@keyframes cardIn{
+	from{
+		opacity:0;
+		transform:translateY(12px);
+	}
+	to{
+		opacity:1;
+		transform:translateY(0);
+	}
+}
+
+@media (max-width:680px){
+.hero,
+form{
+padding-left:16px;
+padding-right:16px;
+}
+
+.lane-row{
+grid-template-columns:1fr;
+gap:8px;
+padding:10px;
+}
+
+.lane-label{
+font-size:0.88rem;
+}
+
+.hero h1{
+font-size:1.2rem;
+}
+
+.hero p{
+font-size:0.88rem;
+}
+}
+</style>
+</head>
+
+<body class="theme-page">
+<main class="container theme-card">
+	<section class="hero">
+		<h1>Upload Lane Videos</h1>
+		<p>Select one video file per lane to initialize the smart traffic workflow.</p>
+	</section>
+
+	<form action="/upload" method="post" enctype="multipart/form-data">
+		<div class="lane-row">
+			<label class="lane-label" for="lane1">Lane 1 Video</label>
+			<div class="input-wrap">
+				<input id="lane1" type="file" name="lane1" accept="video/*" required>
+				<span class="file-name" data-file-name="lane1">No file selected</span>
+			</div>
+		</div>
+
+		<div class="lane-row">
+			<label class="lane-label" for="lane2">Lane 2 Video</label>
+			<div class="input-wrap">
+				<input id="lane2" type="file" name="lane2" accept="video/*" required>
+				<span class="file-name" data-file-name="lane2">No file selected</span>
+			</div>
+		</div>
+
+		<div class="lane-row">
+			<label class="lane-label" for="lane3">Lane 3 Video</label>
+			<div class="input-wrap">
+				<input id="lane3" type="file" name="lane3" accept="video/*" required>
+				<span class="file-name" data-file-name="lane3">No file selected</span>
+			</div>
+		</div>
+
+		<div class="lane-row">
+			<label class="lane-label" for="lane4">Lane 4 Video</label>
+			<div class="input-wrap">
+				<input id="lane4" type="file" name="lane4" accept="video/*" required>
+				<span class="file-name" data-file-name="lane4">No file selected</span>
+			</div>
+		</div>
+
+		<button type="submit">Start System</button>
+	</form>
+</main>
+
+<script>
+const inputs = document.querySelectorAll('input[type="file"]');
+
+inputs.forEach((input) => {
+	const output = document.querySelector(`[data-file-name="${input.id}"]`);
+
+	input.addEventListener("change", () => {
+		const selectedFile = input.files && input.files.length ? input.files[0].name : "No file selected";
+		output.textContent = selectedFile;
+		output.classList.toggle("selected", selectedFile !== "No file selected");
+	});
+});
+</script>
+</body>
+</html>
