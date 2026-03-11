@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Smart Traffic Control Center</title>
+<link rel="stylesheet" href="/static/theme.css">
+
+<style>
+:root{
+--panel:var(--surface);
+--panel-edge:var(--surface-line);
+--shadow:0 18px 44px rgba(5,12,25,0.28);
+}
+
+html,
+body{
+height:100%;
+overflow:hidden;
+}
+
+.loading-overlay{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:linear-gradient(135deg, #0a1628 0%, #1a2332 100%);
+z-index:9999;
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+gap:30px;
+transition:opacity 0.5s ease, visibility 0.5s;
+}
+
+.loading-overlay.hidden{
+opacity:0;
+visibility:hidden;
+}
+
+.spinner{
+width:80px;
+height:80px;
+border:6px solid rgba(0,230,118,0.1);
+border-top:6px solid #00e676;
+border-radius:50%;
+animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+0%{transform:rotate(0deg);}
+100%{transform:rotate(360deg);}
+}
+
+.loading-text{
+color:#00e676;
+font-size:1.5rem;
+font-weight:700;
+letter-spacing:0.5px;
+text-shadow:0 0 20px rgba(0,230,118,0.3);
+}
+
+.loading-status{
+color:rgba(255,255,255,0.6);
+font-size:0.9rem;
+margin-top:-10px;
+}
+
+.layout{
+height:100vh;
+padding:8px;
+display:grid;
+}
+
+.dashboard{
+display:grid;
+grid-template-columns:1fr 1fr;
+grid-template-rows:1fr 1fr;
+gap:8px;
+height:100%;
+min-height:0;
+}
+
+.lane-box{
+--card-bg:var(--panel);
+--card-border:var(--panel-edge);
+--card-shadow:0 4px 12px rgba(12,27,46,0.18);
+display:flex;
+align-items:center;
+padding:8px;
+gap:8px;
+min-height:0;
+}
+
+.signal{
+width:48px;
+background:var(--signal-shell);
+border-radius:10px;
+padding:5px;
+display:flex;
+flex-direction:column;
+justify-content:center;
+gap:5px;
+align-self:stretch;
+}
+
+.light{
+width:30px;
+height:30px;
+border-radius:50%;
+margin:0 auto;
+background:var(--signal-off);
+box-shadow:inset 0 0 0 2px rgba(255,255,255,0.08);
+transition:all 200ms ease;
+}
+
+.red{
+background:#ff3b3b;
+box-shadow:0 0 12px rgba(255,59,59,0.8), inset 0 0 0 2px rgba(255,255,255,0.2);
+}
+.yellow{
+background:#ffbb33;
+box-shadow:0 0 12px rgba(255,187,51,0.8), inset 0 0 0 2px rgba(255,255,255,0.2);
+}
+.green{
+background:#00e676;
+box-shadow:0 0 16px rgba(0,230,118,0.9), inset 0 0 0 2px rgba(255,255,255,0.2);
+}
+
+.video{
+flex:1;
+position:relative;
+min-height:0;
+height:100%;
+background:#000;
+border:1px solid var(--lane-frame);
+border-radius:10px;
+overflow:hidden;
+}
+
+img{
+width:100%;
+height:100%;
+object-fit:cover;
+background:#000;
+}
+
+.timer{
+position:absolute;
+top:10px;
+left:10px;
+color:#00ff88;
+font-size:clamp(1.4rem, 3vw, 2.2rem);
+font-weight:900;
+background:rgba(0,0,0,0.85);
+padding:8px 16px;
+border-radius:10px;
+min-width:60px;
+text-align:center;
+text-shadow:0 0 20px rgba(0,255,136,0.8), 0 0 40px rgba(0,255,136,0.4);
+border:2px solid rgba(0,255,136,0.3);
+box-shadow:0 0 20px rgba(0,255,136,0.2), inset 0 0 20px rgba(0,255,136,0.1);
+letter-spacing:0.05em;
+transition:all 150ms ease-out;
+}
+
+.lane-title{
+position:absolute;
+top:10px;
+right:10px;
+color:#fff;
+font-size:clamp(0.85rem, 1.8vw, 1.05rem);
+font-weight:700;
+background:rgba(0,0,0,0.75);
+padding:6px 12px;
+border-radius:8px;
+backdrop-filter:blur(4px);
+letter-spacing:0.5px;
+}
+
+.vehicle-count{
+position:absolute;
+bottom:10px;
+left:10px;
+color:#fff;
+font-size:clamp(0.75rem, 1.4vw, 0.9rem);
+font-weight:600;
+background:rgba(0,0,0,0.75);
+padding:6px 10px;
+border-radius:8px;
+backdrop-filter:blur(4px);
+line-height:1.4;
+}
+
+@media (max-width:900px){
+.layout{
+padding:6px;
+}
+
+.dashboard{
+gap:6px;
+}
+
+.lane-box{
+padding:6px;
+gap:6px;
+}
+
+.signal{
+width:40px;
+padding:4px;
+}
+
+.light{
+width:24px;
+height:24px;
+}
+
+.timer{
+font-size:1.2rem;
+padding:6px 12px;
+}
+
+.lane-title{
+font-size:0.8rem;
+padding:5px 10px;
+}
+
+.vehicle-count{
+font-size:0.7rem;
+padding:5px 8px;
+}
+}
+
+</style>
+
+</head>
+
+<body class="theme-page">
+
+<div class="loading-overlay" id="loadingOverlay">
+<div class="spinner"></div>
+<div class="loading-text">Initializing Traffic System</div>
+<div class="loading-status">Loading video feeds...</div>
+</div>
+
+<main class="layout">
+
+<div class="dashboard">
+
+{% for i in range(1,5) %}
+
+<div class="lane-box theme-card">
+
+<div class="signal">
+
+<div id="red-{{i}}" class="light"></div>
+<div id="yellow-{{i}}" class="light"></div>
+<div id="green-{{i}}" class="light"></div>
+
+</div>
+
+<div class="video">
+
+<img id="lane{{i}}" src="/video_feed/{{i}}">
+
+<div id="timer-{{i}}" class="timer">0</div>
+
+<div class="lane-title">Lane {{i}}</div>
+
+</div>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+</main>
+
+<script>
+
+let videosLoaded = {1:false, 2:false, 3:false, 4:false};
+let systemReady = false;
+
+function checkAllVideosLoaded(){
+if(Object.values(videosLoaded).every(v=>v) && !systemReady){
+systemReady = true;
+setTimeout(()=>{
+document.getElementById('loadingOverlay').classList.add('hidden');
+},500);
+}
+}
+
+for(let i=1; i<=4; i++){
+let img = document.getElementById('lane'+i);
+img.addEventListener('load', function(){
+videosLoaded[i] = true;
+checkAllVideosLoaded();
+});
+}
+
+setTimeout(()=>{
+if(!systemReady){
+document.getElementById('loadingOverlay').classList.add('hidden');
+}
+},5000);
+
+function updateSignal(){
+
+fetch("/signal_status")
+.then(res=>res.json())
+.then(data=>{
+
+let active=data.active_lane
+let next=data.next_lane
+let state=data.signal_state
+let remaining=data.remaining
+
+for(let i=1;i<=4;i++){
+
+let red=document.getElementById("red-"+i)
+let yellow=document.getElementById("yellow-"+i)
+let green=document.getElementById("green-"+i)
+let timer=document.getElementById("timer-"+i)
+
+red.classList.remove("red")
+yellow.classList.remove("yellow")
+green.classList.remove("green")
+
+if(state==="GREEN" && i===active){
+
+green.classList.add("green")
+timer.innerText=remaining
+
+}
+else if(state==="YELLOW" && (i===next || i===active)){
+
+yellow.classList.add("yellow")
+timer.innerText=remaining
+
+}
+else{
+
+red.classList.add("red")
+timer.innerText=""
+
+}
+
+}
+
+})
+
+}
+
+setInterval(updateSignal,200)
+
+</script>
+
+</body>
+</html>
