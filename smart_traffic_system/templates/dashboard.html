@@ -182,60 +182,6 @@ backdrop-filter:blur(4px);
 letter-spacing:0.5px;
 }
 
-.vehicle-count{
-position:absolute;
-bottom:10px;
-left:10px;
-color:#fff;
-font-size:clamp(0.75rem, 1.4vw, 0.9rem);
-font-weight:600;
-background:rgba(0,0,0,0.75);
-padding:6px 10px;
-border-radius:8px;
-backdrop-filter:blur(4px);
-line-height:1.4;
-}
-
-@media (max-width:900px){
-.layout{
-padding:6px;
-}
-
-.dashboard{
-gap:6px;
-}
-
-.lane-box{
-padding:6px;
-gap:6px;
-}
-
-.signal{
-width:40px;
-padding:4px;
-}
-
-.light{
-width:24px;
-height:24px;
-}
-
-.timer{
-font-size:1.2rem;
-padding:6px 12px;
-}
-
-.lane-title{
-font-size:0.8rem;
-padding:5px 10px;
-}
-
-.vehicle-count{
-font-size:0.7rem;
-padding:5px 8px;
-}
-}
-
 </style>
 
 </head>
@@ -284,42 +230,55 @@ padding:5px 8px;
 
 <script>
 
-let videosLoaded = {1:false, 2:false, 3:false, 4:false};
-let systemReady = false;
+/* ---------- FIXED LOADER FOR MJPEG STREAM ---------- */
 
-function checkAllVideosLoaded(){
-if(Object.values(videosLoaded).every(v=>v) && !systemReady){
-systemReady = true;
+let systemReady=false;
+
+function hideLoader(){
+
+if(systemReady) return;
+
+systemReady=true;
+
 setTimeout(()=>{
-document.getElementById('loadingOverlay').classList.add('hidden');
+document.getElementById("loadingOverlay").classList.add("hidden");
 },500);
-}
+
 }
 
-for(let i=1; i<=4; i++){
-let img = document.getElementById('lane'+i);
-img.addEventListener('load', function(){
-videosLoaded[i] = true;
-checkAllVideosLoaded();
-});
+for(let i=1;i<=4;i++){
+
+let img=document.getElementById("lane"+i);
+
+/* MJPEG streams sometimes never trigger load events reliably */
+img.onload=hideLoader;
+
 }
 
-setTimeout(()=>{
-if(!systemReady){
-document.getElementById('loadingOverlay').classList.add('hidden');
-}
-},5000);
+/* fallback in case events fail */
+setTimeout(hideLoader,3000);
+
+
+/* ---------- SIGNAL STATUS ---------- */
+
+let updating=false;
 
 function updateSignal(){
+
+if(updating) return;
+updating=true;
 
 fetch("/signal_status")
 .then(res=>res.json())
 .then(data=>{
 
+updating=false;
+
 let active=data.active_lane
 let next=data.next_lane
 let state=data.signal_state
 let remaining=data.remaining
+let emgLane=data.emergency_lane   // null when no emergency
 
 for(let i=1;i<=4;i++){
 
@@ -335,13 +294,15 @@ green.classList.remove("green")
 if(state==="GREEN" && i===active){
 
 green.classList.add("green")
-timer.innerText=remaining
+// During emergency override hide the countdown — it is always 15 s
+// and meaningless to show. Show nothing so the UI stays clean.
+timer.innerText = emgLane===i ? "" : remaining
 
 }
 else if(state==="YELLOW" && (i===next || i===active)){
 
 yellow.classList.add("yellow")
-timer.innerText=remaining
+timer.innerText=""
 
 }
 else{
@@ -357,7 +318,9 @@ timer.innerText=""
 
 }
 
-setInterval(updateSignal,200)
+/* smoother UI but lighter backend load */
+
+setInterval(updateSignal,400)
 
 </script>
 
