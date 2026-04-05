@@ -33,6 +33,10 @@ del _warmup_frame
 #                frames, so this semaphore is naturally 1-slot in that phase.
 _ambulance_infer_sem = threading.Semaphore(2)
 
+# Set by /reset to signal the controller thread to exit its loop cleanly.
+# Cleared by upload() before the controller is (re)started.
+_reset_event = threading.Event()
+
 # ---------------- SETTINGS ----------------
 
 # --- Signal timing ---
@@ -247,6 +251,8 @@ def upload():
     with traffic_lock:
         compute_active = True   # open vehicle gate for startup scan
 
+    _reset_event.clear()        # ensure controller doesn't exit immediately on (re)start
+
     if controller_thread is None or not controller_thread.is_alive():
         controller_thread = threading.Thread(target=_traffic_controller, daemon=True)
         controller_thread.start()
@@ -273,6 +279,71 @@ def signal_status():
         })
 
 
+# ---------------- RESET ROUTE ----------------
+#
+# Steps:
+#   1. Set _reset_event  → controller thread exits its loop within 0.1 s
+#   2. Bump all stream_tokens → all 4×4 worker threads see token mismatch
+#      and return on their next STATE_CACHE_EVERY check (within ~200 ms)
+#   3. Release video captures and drain all queues
+#   4. Zero every piece of shared state so the next upload() starts clean
+#
+@app.route("/reset", methods=["POST"])
+def reset():
+    global controller_thread, compute_active
+    global active_lane, next_lane, signal_state, lane_green_time, lane_start_time
+    global emergency_mode, emergency_lane_id, emergency_check_resume_time
+
+    # 1. Tell the controller to exit.
+    _reset_event.set()
+
+    with traffic_lock:
+        # 2. Bump tokens — all worker threads will exit on next token check.
+        for i in range(1, 5):
+            stream_tokens[i] += 1
+
+        # 3. Release captures and drain queues.
+        for i in range(1, 5):
+            cap = caps.pop(i, None)
+            if cap is not None:
+                cap.release()
+            _drain(display_queue[i])
+            _drain(vehicle_queue[i])
+            _drain(ambulance_queue[i])
+
+        # 4. Reset all shared state to initial values.
+        for i in range(1, 5):
+            lane_times[i]        = 0
+            waiting_score[i]     = 0
+            ambulance_counter[i] = 0
+            ambulance_memory[i]  = 0
+            ambulance_present[i] = False
+
+        emergency_mode              = False
+        emergency_lane_id           = None
+        emergency_check_resume_time = 0.0
+        active_lane                 = 1
+        next_lane                   = None
+        signal_state                = "GREEN"
+        lane_green_time             = MIN_GREEN
+        lane_start_time             = time.time()
+        compute_active              = False
+        controller_thread           = None
+
+    # Clear per-lane annotations (own locks, must be outside traffic_lock).
+    for i in range(1, 5):
+        with overlay_locks[i]:
+            lane_annotations[i] = []
+
+    # Clear cached frames so old video doesn't flash on next load.
+    for i in range(1, 5):
+        with frame_locks[i]:
+            latest_frames.pop(i, None)
+
+    print("[SYSTEM] Reset complete — ready for new upload.")
+    return ("", 204)
+
+
 # ---------------- TRAFFIC CONTROLLER ----------------
 #
 # STARTUP
@@ -297,11 +368,17 @@ def _traffic_controller():
     global compute_active
 
     # Startup: wait for initial vehicle scan then close the gate.
-    time.sleep(INITIAL_COMPUTE_TIME)
+    # Use _reset_event.wait so a reset during startup exits immediately.
+    if _reset_event.wait(timeout=INITIAL_COMPUTE_TIME):
+        return                       # reset fired during startup — exit now
     with traffic_lock:
         compute_active = False
 
     while True:
+
+        # Exit immediately if reset was requested.
+        if _reset_event.is_set():
+            return
 
         # ---- EMERGENCY WATCHDOG ----
         with traffic_lock:
@@ -310,34 +387,44 @@ def _traffic_controller():
                     _clear_emergency(emergency_lane_id)
                     # Fall through to normal scheduling immediately.
                 else:
-                    time.sleep(0.1)
-                    continue
+                    # Sleep in small ticks so reset is noticed within 0.1 s.
+                    pass
+
+        # Re-check after possible _clear_emergency above.
+        with traffic_lock:
+            still_emergency = emergency_mode
+
+        if still_emergency:
+            _reset_event.wait(timeout=0.1)
+            continue
 
         # ---- YELLOW PHASE ----
+        if _reset_event.is_set():
+            return
+
         with traffic_lock:
             chosen         = _pick_best_lane()
             next_lane      = chosen
             signal_state   = "YELLOW"
-            compute_active = True    # open vehicle gate for yellow duration
-            # Reset all lane_times to 0 so vehicle threads accumulate a fresh
-            # peak score for this yellow window only.  Stale readings from the
-            # previous cycle (or MIN_GREEN initialisation) must not pollute the
-            # next green-time calculation.
+            compute_active = True
             for i in range(1, 5):
                 lane_times[i] = 0
-                _drain(vehicle_queue[i])   # discard any leftover frames too
+                _drain(vehicle_queue[i])
 
-        time.sleep(YELLOW_TIME)      # vehicle threads compute here
+        # Wait for yellow duration but wake immediately on reset.
+        if _reset_event.wait(timeout=YELLOW_TIME):
+            return                   # reset fired during yellow — exit now
+
+        if _reset_event.is_set():
+            return
 
         # Check: did emergency fire during yellow?
-        # Without this the controller would overwrite active_lane and
-        # lane_start_time, destroying the emergency state just set.
         with traffic_lock:
             if emergency_mode:
                 compute_active = False
                 for i in range(1, 5):
                     _drain(vehicle_queue[i])
-                continue             # back to top → watchdog handles it
+                continue
 
         # ---- GREEN PHASE ----
         with traffic_lock:
@@ -345,9 +432,6 @@ def _traffic_controller():
             active_lane     = next_lane
             next_lane       = None
             signal_state    = "GREEN"
-            # lane_times[active_lane] holds the raw peak weighted_time from
-            # the just-completed yellow window.  Clamp to [MIN_GREEN, MAX_GREEN]
-            # here so the vehicle thread never needs to know about those limits.
             lane_green_time = max(MIN_GREEN, min(lane_times[active_lane], MAX_GREEN))
             lane_start_time = time.time()
 
@@ -357,13 +441,15 @@ def _traffic_controller():
                 else:
                     waiting_score[lane] += 1
 
-        # ---- IDLE: hold green until timeout or emergency ----
+        # ---- IDLE: hold green until timeout or emergency or reset ----
         deadline = time.time() + lane_green_time
         while time.time() < deadline:
+            if _reset_event.is_set():
+                return
             with traffic_lock:
                 if emergency_mode:
                     break
-            time.sleep(0.1)
+            _reset_event.wait(timeout=0.1)
 
 
 # ---------------- CAPTURE THREAD ----------------
@@ -496,6 +582,9 @@ def _vehicle_thread(lane_id, stream_token):
         results      = vehicle_model(frame, conf=0.4, imgsz=INFER_IMGSZ)[0]
         raw_time     = 0.0
 
+        vehicle_counts = {}   # label → count, for terminal summary
+        contributions  = []   # (label, base_ct, dist_factor, contrib)
+
         for box in results.boxes:
             cls   = int(box.cls)
             label = vehicle_model.names[cls]
@@ -504,7 +593,28 @@ def _vehicle_thread(lane_id, stream_token):
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             y_center        = (y1 + y2) / 2
             distance_factor = 0.5 + (1.0 - (y_center / frame_height))
-            raw_time       += CLEARANCE_TIME[label] * distance_factor
+            contrib          = CLEARANCE_TIME[label] * distance_factor
+            raw_time        += contrib
+
+            vehicle_counts[label] = vehicle_counts.get(label, 0) + 1
+            contributions.append((label, CLEARANCE_TIME[label],
+                                   distance_factor, contrib))
+
+        # --- Terminal: clearance time breakdown ---
+        if contributions:
+            green_time = max(MIN_GREEN, min(raw_time, MAX_GREEN))
+            lines = [f"[Lane {lane_id}] Clearance calculation:"]
+            for label, base_ct, dist, contrib in contributions:
+                lines.append(
+                    f"  {label:<12} base={base_ct:.1f}s  "
+                    f"dist_factor={dist:.2f}  contrib={contrib:.2f}s"
+                )
+            lines.append(
+                f"  {'TOTAL':<12} raw={raw_time:.2f}s  "
+                f"green_time={green_time:.0f}s "
+                f"(clamped to [{MIN_GREEN}, {MAX_GREEN}])"
+            )
+            print("\n".join(lines))
 
         with traffic_lock:
             # Accumulate peak: keep the highest raw score seen this window.
@@ -608,6 +718,7 @@ def _run_ambulance_inference(frame, lane_id, in_emergency):
                 ambulance_present[lane_id] = False
 
             if ambulance_detected:
+                print(f"[Lane {lane_id}] AMBULANCE DETECTED")
                 _trigger_emergency(lane_id)
 
     # Clear all lane overlays only AFTER releasing traffic_lock so encode
@@ -650,14 +761,6 @@ def _encode_thread(lane_id, stream_token):
             frame, _ = display_queue[lane_id].get(timeout=1.0)
         except queue.Empty:
             continue
-
-        with overlay_locks[lane_id]:
-            annotations = list(lane_annotations[lane_id])
-
-        for (x1, y1, x2, y2, label) in annotations:
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            cv2.putText(frame, label, (x1, max(y1 - 8, 0)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
         cv2.putText(frame, f"Lane {lane_id}", (8, 24),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)

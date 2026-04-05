@@ -1,328 +1,529 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Smart Traffic Control Center</title>
+<title>Smart Traffic System</title>
 <link rel="stylesheet" href="/static/theme.css">
-
 <style>
-:root{
---panel:var(--surface);
---panel-edge:var(--surface-line);
---shadow:0 18px 44px rgba(5,12,25,0.28);
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
 }
 
-html,
-body{
-height:100%;
-overflow:hidden;
+body {
+  display: flex;
+  flex-direction: column;
+  background: #001f4b;
+  font-family: "Space Grotesk", sans-serif;
+  color: #1a2535;
 }
 
-.loading-overlay{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
-background:linear-gradient(135deg, #0a1628 0%, #1a2332 100%);
-z-index:9999;
-display:flex;
-flex-direction:column;
-align-items:center;
-justify-content:center;
-gap:30px;
-transition:opacity 0.5s ease, visibility 0.5s;
+/* LOADING OVERLAY */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #eef1f5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  transition: opacity 0.5s ease, visibility 0.5s;
 }
 
-.loading-overlay.hidden{
-opacity:0;
-visibility:hidden;
+.loading-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
 }
 
-.spinner{
-width:80px;
-height:80px;
-border:6px solid rgba(0,230,118,0.1);
-border-top:6px solid #00e676;
-border-radius:50%;
-animation:spin 1s linear infinite;
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(26,99,180,0.12);
+  border-top: 3px solid #1a63b4;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
 }
 
-@keyframes spin{
-0%{transform:rotate(0deg);}
-100%{transform:rotate(360deg);}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.loading-text{
-color:#00e676;
-font-size:1.5rem;
-font-weight:700;
-letter-spacing:0.5px;
-text-shadow:0 0 20px rgba(0,230,118,0.3);
+.loading-text {
+  color: #1a2535;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 
-.loading-status{
-color:rgba(255,255,255,0.6);
-font-size:0.9rem;
-margin-top:-10px;
+.loading-status {
+  color: #7a8fa8;
+  font-size: 0.8rem;
+  margin-top: -8px;
 }
 
-.layout{
-height:100vh;
-padding:8px;
-display:grid;
+/* TOP BAR */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  height: 50px;
+  background: #1c2b3e;
+  border-bottom: 3px solid #1a63b4;
+  flex-shrink: 0;
+  z-index: 10;
 }
 
-.dashboard{
-display:grid;
-grid-template-columns:1fr 1fr;
-grid-template-rows:1fr 1fr;
-gap:8px;
-height:100%;
-min-height:0;
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.lane-box{
---card-bg:var(--panel);
---card-border:var(--panel-edge);
---card-shadow:0 4px 12px rgba(12,27,46,0.18);
-display:flex;
-align-items:center;
-padding:8px;
-gap:8px;
-min-height:0;
+.topbar-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4db3ff;
+  box-shadow: 0 0 8px rgba(77,179,255,0.8);
 }
 
-.signal{
-width:48px;
-background:var(--signal-shell);
-border-radius:10px;
-padding:5px;
-display:flex;
-flex-direction:column;
-justify-content:center;
-gap:5px;
-align-self:stretch;
+.topbar-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: #dce8f5;
 }
 
-.light{
-width:30px;
-height:30px;
-border-radius:50%;
-margin:0 auto;
-background:var(--signal-off);
-box-shadow:inset 0 0 0 2px rgba(255,255,255,0.08);
-transition:all 200ms ease;
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
-.red{
-background:#ff3b3b;
-box-shadow:0 0 12px rgba(255,59,59,0.8), inset 0 0 0 2px rgba(255,255,255,0.2);
-}
-.yellow{
-background:#ffbb33;
-box-shadow:0 0 12px rgba(255,187,51,0.8), inset 0 0 0 2px rgba(255,255,255,0.2);
-}
-.green{
-background:#00e676;
-box-shadow:0 0 16px rgba(0,230,118,0.9), inset 0 0 0 2px rgba(255,255,255,0.2);
+.topbar-clock {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(210,228,248,0.6);
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
 }
 
-.video{
-flex:1;
-position:relative;
-min-height:0;
-height:100%;
-background:#000;
-border:1px solid var(--lane-frame);
-border-radius:10px;
-overflow:hidden;
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #4db3ff;
 }
 
-img{
-width:100%;
-height:100%;
-object-fit:cover;
-background:#000;
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4db3ff;
+  animation: pulse 2s ease-in-out infinite;
 }
 
-.timer{
-position:absolute;
-top:10px;
-left:10px;
-color:#00ff88;
-font-size:clamp(1.4rem, 3vw, 2.2rem);
-font-weight:900;
-background:rgba(0,0,0,0.85);
-padding:8px 16px;
-border-radius:10px;
-min-width:60px;
-text-align:center;
-text-shadow:0 0 20px rgba(0,255,136,0.8), 0 0 40px rgba(0,255,136,0.4);
-border:2px solid rgba(0,255,136,0.3);
-box-shadow:0 0 20px rgba(0,255,136,0.2), inset 0 0 20px rgba(0,255,136,0.1);
-letter-spacing:0.05em;
-transition:all 150ms ease-out;
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
 }
 
-.lane-title{
-position:absolute;
-top:10px;
-right:10px;
-color:#fff;
-font-size:clamp(0.85rem, 1.8vw, 1.05rem);
-font-weight:700;
-background:rgba(0,0,0,0.75);
-padding:6px 12px;
-border-radius:8px;
-backdrop-filter:blur(4px);
-letter-spacing:0.5px;
+/* RESET BUTTON */
+.btn-reset {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 7px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(210,228,248,0.7);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 160ms, border-color 160ms, color 160ms;
+}
+
+.btn-reset:hover {
+  background: rgba(220,60,60,0.18);
+  border-color: rgba(220,80,80,0.45);
+  color: #ff8080;
+}
+
+/* GRID */
+.layout {
+  flex: 1;
+  padding: 10px;
+  min-height: 0;
+  display: grid;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+/* LANE PANEL */
+.lane-box {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid #d4dbe6;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(26,42,65,0.08);
+}
+
+/* SIGNAL COLUMN */
+.signal {
+  width: 44px;
+  background: #1c2b3e;
+  border-radius: 10px;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.light {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #0f1c2b;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: all 200ms ease;
+}
+
+.red    { background: #e53935; box-shadow: 0 0 10px rgba(229,57,53,0.8);  border-color: transparent; }
+.yellow { background: #f9a825; box-shadow: 0 0 10px rgba(249,168,37,0.8); border-color: transparent; }
+.green  { background: #00c853; box-shadow: 0 0 12px rgba(0,200,83,0.9);   border-color: transparent; }
+
+/* VIDEO */
+.video {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  background: #111;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid #d4dbe6;
+}
+
+img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.lane-title {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.5);
+  padding: 4px 10px;
+  border-radius: 5px;
+  backdrop-filter: blur(4px);
+}
+
+.timer {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: #fff;
+  font-size: clamp(1.3rem, 2.8vw, 2rem);
+  font-weight: 800;
+  background: rgba(0,0,0,0.6);
+  padding: 6px 14px;
+  border-radius: 8px;
+  min-width: 52px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(4px);
+  transition: opacity 150ms ease;
+}
+
+/* CONFIRM MODAL */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15,25,40,0.5);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 200ms ease, visibility 200ms ease;
+}
+
+.modal-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal {
+  background: #fff;
+  border: 1px solid #d4dbe6;
+  border-radius: 14px;
+  padding: 28px 26px 22px;
+  width: min(340px, 90vw);
+  box-shadow: 0 20px 50px rgba(15,25,40,0.2);
+  transform: translateY(12px);
+  transition: transform 200ms ease;
+}
+
+.modal-backdrop.open .modal {
+  transform: translateY(0);
+}
+
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1a2535;
+}
+
+.modal p {
+  margin: 0 0 22px;
+  font-size: 0.85rem;
+  color: #5a6e85;
+  line-height: 1.55;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.btn-cancel {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #d4dbe6;
+  background: #f4f6f9;
+  color: #4a5e75;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+}
+
+.btn-cancel:hover {
+  background: #eaecf2;
+  border-color: #b8c4d0;
+}
+
+.btn-confirm {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: #d63030;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms, box-shadow 150ms;
+}
+
+.btn-confirm:hover {
+  background: #be2828;
+  box-shadow: 0 4px 12px rgba(214,48,48,0.35);
 }
 
 </style>
-
 </head>
 
-<body class="theme-page">
+<body>
 
 <div class="loading-overlay" id="loadingOverlay">
-<div class="spinner"></div>
-<div class="loading-text">Initializing Traffic System</div>
-<div class="loading-status">Loading video feeds...</div>
+  <div class="spinner"></div>
+  <div class="loading-text">Initialising Traffic System</div>
+  <div class="loading-status">Loading video feeds...</div>
+</div>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-indicator"></div>
+    <span class="topbar-title">Smart Traffic System</span>
+  </div>
+  <div class="topbar-right">
+    <span class="topbar-clock" id="clock"></span>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      Live
+    </div>
+    <button class="btn-reset" id="resetBtn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+      </svg>
+      Reset
+    </button>
+  </div>
+</header>
+
+<!-- Confirm modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2>Reset the system?</h2>
+    <p>All video feeds and signal state will be cleared. You will be taken back to the upload page to start again.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelBtn">Cancel</button>
+      <button class="btn-confirm" id="confirmBtn">Yes, Reset</button>
+    </div>
+  </div>
 </div>
 
 <main class="layout">
+  <div class="dashboard">
 
-<div class="dashboard">
+    {% for i in range(1,5) %}
+    <div class="lane-box">
 
-{% for i in range(1,5) %}
+      <div class="signal">
+        <div id="red-{{i}}"    class="light"></div>
+        <div id="yellow-{{i}}" class="light"></div>
+        <div id="green-{{i}}"  class="light"></div>
+      </div>
 
-<div class="lane-box theme-card">
+      <div class="video">
+        <img id="lane{{i}}" src="/video_feed/{{i}}">
+        <div id="timer-{{i}}" class="timer">—</div>
+        <div class="lane-title">Lane {{i}}</div>
+      </div>
 
-<div class="signal">
+    </div>
+    {% endfor %}
 
-<div id="red-{{i}}" class="light"></div>
-<div id="yellow-{{i}}" class="light"></div>
-<div id="green-{{i}}" class="light"></div>
-
-</div>
-
-<div class="video">
-
-<img id="lane{{i}}" src="/video_feed/{{i}}">
-
-<div id="timer-{{i}}" class="timer">0</div>
-
-<div class="lane-title">Lane {{i}}</div>
-
-</div>
-
-</div>
-
-{% endfor %}
-
-</div>
-
+  </div>
 </main>
 
 <script>
 
-/* ---------- FIXED LOADER FOR MJPEG STREAM ---------- */
+/* CLOCK */
+function updateClock() {
+  const now = new Date();
+  document.getElementById("clock").textContent =
+    now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+updateClock();
+setInterval(updateClock, 1000);
 
-let systemReady=false;
+/* LOADER */
+let systemReady = false;
 
-function hideLoader(){
-
-if(systemReady) return;
-
-systemReady=true;
-
-setTimeout(()=>{
-document.getElementById("loadingOverlay").classList.add("hidden");
-},500);
-
+function hideLoader() {
+  if (systemReady) return;
+  systemReady = true;
+  setTimeout(() => {
+    document.getElementById("loadingOverlay").classList.add("hidden");
+  }, 500);
 }
 
-for(let i=1;i<=4;i++){
-
-let img=document.getElementById("lane"+i);
-
-/* MJPEG streams sometimes never trigger load events reliably */
-img.onload=hideLoader;
-
+for (let i = 1; i <= 4; i++) {
+  let img = document.getElementById("lane" + i);
+  img.onload = hideLoader;
 }
 
-/* fallback in case events fail */
-setTimeout(hideLoader,3000);
+setTimeout(hideLoader, 3000);
 
+/* SIGNAL STATUS */
+let updating = false;
 
-/* ---------- SIGNAL STATUS ---------- */
+function updateSignal() {
+  if (updating) return;
+  updating = true;
 
-let updating=false;
+  fetch("/signal_status")
+    .then(res => res.json())
+    .then(data => {
+      updating = false;
 
-function updateSignal(){
+      let active   = data.active_lane;
+      let next     = data.next_lane;
+      let state    = data.signal_state;
+      let remaining = data.remaining;
+      let emgLane  = data.emergency_lane;
 
-if(updating) return;
-updating=true;
+      for (let i = 1; i <= 4; i++) {
+        let red    = document.getElementById("red-"    + i);
+        let yellow = document.getElementById("yellow-" + i);
+        let green  = document.getElementById("green-"  + i);
+        let timer  = document.getElementById("timer-"  + i);
 
-fetch("/signal_status")
-.then(res=>res.json())
-.then(data=>{
+        red.classList.remove("red");
+        yellow.classList.remove("yellow");
+        green.classList.remove("green");
 
-updating=false;
-
-let active=data.active_lane
-let next=data.next_lane
-let state=data.signal_state
-let remaining=data.remaining
-let emgLane=data.emergency_lane   // null when no emergency
-
-for(let i=1;i<=4;i++){
-
-let red=document.getElementById("red-"+i)
-let yellow=document.getElementById("yellow-"+i)
-let green=document.getElementById("green-"+i)
-let timer=document.getElementById("timer-"+i)
-
-red.classList.remove("red")
-yellow.classList.remove("yellow")
-green.classList.remove("green")
-
-if(state==="GREEN" && i===active){
-
-green.classList.add("green")
-// During emergency override hide the countdown — it is always 15 s
-// and meaningless to show. Show nothing so the UI stays clean.
-timer.innerText = emgLane===i ? "" : remaining
-
-}
-else if(state==="YELLOW" && (i===next || i===active)){
-
-yellow.classList.add("yellow")
-timer.innerText=""
-
-}
-else{
-
-red.classList.add("red")
-timer.innerText=""
-
+        if (state === "GREEN" && i === active) {
+          green.classList.add("green");
+          timer.style.opacity = "1";
+          timer.innerText = emgLane === i ? "" : remaining;
+        } else if (state === "YELLOW" && (i === next || i === active)) {
+          yellow.classList.add("yellow");
+          timer.style.opacity = "0.35";
+          timer.innerText = "";
+        } else {
+          red.classList.add("red");
+          timer.style.opacity = "0.35";
+          timer.innerText = "";
+        }
+      }
+    });
 }
 
-}
+setInterval(updateSignal, 400);
 
-})
+/* RESET */
+const resetBtn      = document.getElementById("resetBtn");
+const modalBackdrop = document.getElementById("modalBackdrop");
+const cancelBtn     = document.getElementById("cancelBtn");
+const confirmBtn    = document.getElementById("confirmBtn");
 
-}
+resetBtn.addEventListener("click", () => modalBackdrop.classList.add("open"));
+cancelBtn.addEventListener("click", () => modalBackdrop.classList.remove("open"));
+modalBackdrop.addEventListener("click", e => { if (e.target === modalBackdrop) modalBackdrop.classList.remove("open"); });
 
-/* smoother UI but lighter backend load */
-
-setInterval(updateSignal,400)
+confirmBtn.addEventListener("click", () => {
+  confirmBtn.textContent = "Resetting…";
+  confirmBtn.disabled = true;
+  fetch("/reset", { method: "POST" })
+    .finally(() => { window.location.href = "/"; });
+});
 
 </script>
-
 </body>
 </html>
