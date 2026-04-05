@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['ambulance']
+
+roboflow:
+  workspace: fandroids-workspace
+  project: ambulance-dataset-2lroo
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/fandroids-workspace/ambulance-dataset-2lroo/dataset/2
