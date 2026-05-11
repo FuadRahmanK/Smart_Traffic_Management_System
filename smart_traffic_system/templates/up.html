@@ -23,7 +23,6 @@ body {
   color: #e8f0fa;
 }
 
-/* TOP BAR */
 .topbar {
   display: flex;
   align-items: center;
@@ -66,7 +65,6 @@ body {
   color: rgba(180,205,235,0.3);
 }
 
-/* PAGE */
 .page {
   flex: 1;
   display: flex;
@@ -95,7 +93,6 @@ body {
   color: rgba(180,205,235,0.45);
 }
 
-/* CARD */
 .card {
   width: min(520px, 100%);
   background: rgba(14,24,40,0.9);
@@ -105,7 +102,6 @@ body {
   overflow: hidden;
 }
 
-/* FORM */
 form {
   padding: 22px 22px 0;
   display: grid;
@@ -179,7 +175,6 @@ input[type="file"]::file-selector-button:hover {
   font-weight: 500;
 }
 
-/* SUBMIT */
 .card-footer {
   padding: 18px 22px 22px;
 }
@@ -209,7 +204,6 @@ button[type="submit"]:active {
   transform: translateY(0);
 }
 
-/* FOOTER */
 .site-footer {
   padding: 18px;
   text-align: center;
@@ -234,14 +228,14 @@ button[type="submit"]:active {
 <div class="page">
 
   <div class="page-header">
-    <h1>Load Lane Videos</h1>
-    <p>Select one video file per intersection lane to begin.</p>
+    <h1>Load Road Videos</h1>
+    <p>Select one video file per intersection road to begin.</p>
   </div>
 
   <div class="card">
     <form action="/upload" method="post" enctype="multipart/form-data" id="uploadForm">
       <div class="lane-row">
-        <label class="lane-label" for="lane1">Lane 1</label>
+        <label class="lane-label" for="lane1">Road 1</label>
         <div class="input-wrap">
           <input id="lane1" type="file" name="lane1" accept="video/*" required>
           <span class="file-name" data-file-name="lane1">No file selected</span>
@@ -249,7 +243,7 @@ button[type="submit"]:active {
       </div>
 
       <div class="lane-row">
-        <label class="lane-label" for="lane2">Lane 2</label>
+        <label class="lane-label" for="lane2">Road 2</label>
         <div class="input-wrap">
           <input id="lane2" type="file" name="lane2" accept="video/*" required>
           <span class="file-name" data-file-name="lane2">No file selected</span>
@@ -257,7 +251,7 @@ button[type="submit"]:active {
       </div>
 
       <div class="lane-row">
-        <label class="lane-label" for="lane3">Lane 3</label>
+        <label class="lane-label" for="lane3">Road 3</label>
         <div class="input-wrap">
           <input id="lane3" type="file" name="lane3" accept="video/*" required>
           <span class="file-name" data-file-name="lane3">No file selected</span>
@@ -265,7 +259,7 @@ button[type="submit"]:active {
       </div>
 
       <div class="lane-row">
-        <label class="lane-label" for="lane4">Lane 4</label>
+        <label class="lane-label" for="lane4">Road 4</label>
         <div class="input-wrap">
           <input id="lane4" type="file" name="lane4" accept="video/*" required>
           <span class="file-name" data-file-name="lane4">No file selected</span>

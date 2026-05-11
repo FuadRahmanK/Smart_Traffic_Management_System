@@ -23,7 +23,6 @@ body {
   color: #1a2535;
 }
 
-/* LOADING OVERLAY */
 .loading-overlay {
   position: fixed;
   inset: 0;
@@ -68,7 +67,6 @@ body {
   margin-top: -8px;
 }
 
-/* TOP BAR */
 .topbar {
   display: flex;
   align-items: center;
@@ -141,7 +139,6 @@ body {
   50%       { opacity: 0.35; }
 }
 
-/* RESET BUTTON */
 .btn-reset {
   display: flex;
   align-items: center;
@@ -165,7 +162,6 @@ body {
   color: #ff8080;
 }
 
-/* GRID */
 .layout {
   flex: 1;
   padding: 10px;
@@ -182,7 +178,6 @@ body {
   min-height: 0;
 }
 
-/* LANE PANEL */
 .lane-box {
   display: flex;
   gap: 10px;
@@ -194,7 +189,6 @@ body {
   box-shadow: 0 2px 8px rgba(26,42,65,0.08);
 }
 
-/* SIGNAL COLUMN */
 .signal {
   width: 44px;
   background: #1c2b3e;
@@ -222,7 +216,6 @@ body {
 .yellow { background: #f9a825; box-shadow: 0 0 10px rgba(249,168,37,0.8); border-color: transparent; }
 .green  { background: #00c853; box-shadow: 0 0 12px rgba(0,200,83,0.9);   border-color: transparent; }
 
-/* VIDEO */
 .video {
   flex: 1;
   position: relative;
@@ -273,7 +266,6 @@ img {
   transition: opacity 150ms ease;
 }
 
-/* CONFIRM MODAL */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -364,6 +356,44 @@ img {
   box-shadow: 0 4px 12px rgba(214,48,48,0.35);
 }
 
+.info-labels {
+  position: absolute;
+  bottom: 40px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  z-index: 5;
+}
+
+.vehicle-info {
+  background: rgba(0,0,0,0.6);
+  color: rgba(255,255,255,0.85);
+  padding: 3px 8px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  min-width: 80px;
+}
+
+.ambulance-badge {
+  background: rgba(0,0,0,0.6);
+  color: rgba(255,255,255,0.85);
+  padding: 3px 8px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  transition: background 200ms ease, color 200ms ease;
+}
+
+.ambulance-badge.detected {
+  background: rgba(220,60,60,0.8);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(220,60,60,0.6);
+}
+
 </style>
 </head>
 
@@ -395,7 +425,6 @@ img {
   </div>
 </header>
 
-<!-- Confirm modal -->
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal">
     <h2>Reset the system?</h2>
@@ -422,7 +451,10 @@ img {
       <div class="video">
         <img id="lane{{i}}" src="/video_feed/{{i}}">
         <div id="timer-{{i}}" class="timer">—</div>
-        <div class="lane-title">Lane {{i}}</div>
+        <div class="lane-title">Road {{i}}</div>
+        <div class="info-labels">
+          <div id="ambulance-status-{{i}}" class="ambulance-badge">Ambulance: No</div>
+        </div>
       </div>
 
     </div>
@@ -433,7 +465,6 @@ img {
 
 <script>
 
-/* CLOCK */
 function updateClock() {
   const now = new Date();
   document.getElementById("clock").textContent =
@@ -442,7 +473,6 @@ function updateClock() {
 updateClock();
 setInterval(updateClock, 1000);
 
-/* LOADER */
 let systemReady = false;
 
 function hideLoader() {
@@ -460,7 +490,6 @@ for (let i = 1; i <= 4; i++) {
 
 setTimeout(hideLoader, 3000);
 
-/* SIGNAL STATUS */
 let updating = false;
 
 function updateSignal() {
@@ -483,6 +512,7 @@ function updateSignal() {
         let yellow = document.getElementById("yellow-" + i);
         let green  = document.getElementById("green-"  + i);
         let timer  = document.getElementById("timer-"  + i);
+        let ambulanceStatus = document.getElementById("ambulance-status-" + i);
 
         red.classList.remove("red");
         yellow.classList.remove("yellow");
@@ -501,13 +531,17 @@ function updateSignal() {
           timer.style.opacity = "0.35";
           timer.innerText = "";
         }
+
+        // Update ambulance status (displays immediately when detected)
+        let ambulanceDetected = data.ambulance_detected ? data.ambulance_detected[i] || false : false;
+        ambulanceStatus.innerText = ambulanceDetected ? "Ambulance: Yes" : "Ambulance: No";
+        ambulanceStatus.classList.toggle("detected", ambulanceDetected);
       }
     });
 }
 
 setInterval(updateSignal, 400);
 
-/* RESET */
 const resetBtn      = document.getElementById("resetBtn");
 const modalBackdrop = document.getElementById("modalBackdrop");
 const cancelBtn     = document.getElementById("cancelBtn");
